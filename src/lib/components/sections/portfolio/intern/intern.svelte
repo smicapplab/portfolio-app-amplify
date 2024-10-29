@@ -1,0 +1,207 @@
+<script>
+	// @ts-nocheck
+
+	import { theme } from '$lib/stores/theme';
+	import { cubicOut } from 'svelte/easing';
+	import { fly } from 'svelte/transition';
+	import { onMount } from 'svelte';
+	import { assets } from '$app/paths';
+	import { isVideo } from '$lib/util';
+	import { Icons } from '$lib/components/icons';
+
+	let show = false;
+	let sectionRef;
+	let selectedMedia = null;
+	let mediaLoaded = false;
+
+	const internships = [
+		`${assets}/images/portfolio/internship/1.png`,
+		`${assets}/images/portfolio/internship/2.png`,
+		`${assets}/images/portfolio/internship/3.png`,
+		`${assets}/images/portfolio/internship/4.mp4`,
+		`${assets}/images/portfolio/internship/5.png`,
+		`${assets}/images/portfolio/internship/6.jpg`,
+		`${assets}/images/portfolio/internship/7.mp4`,
+		`${assets}/images/portfolio/internship/8.png`
+	];
+
+	let visibleCards = [];
+
+	onMount(() => {
+		preloadMedia(internships);
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) {
+						show = true;
+						if (mediaLoaded) {
+							animateCards();
+						}
+						observer.unobserve(entry.target);
+					}
+				});
+			},
+			{
+				root: null,
+				threshold: 0.5
+			}
+		);
+
+		observer.observe(sectionRef);
+	});
+
+	function preloadMedia(mediaList) {
+		let loadedCount = 0;
+		mediaList.forEach((src) => {
+			if (isVideo(src)) {
+				const video = document.createElement('video');
+				video.onloadeddata = handleLoaded;
+				video.src = src;
+			} else {
+				const img = new Image();
+				img.onload = handleLoaded;
+				img.src = src;
+			}
+		});
+
+		function handleLoaded() {
+			loadedCount++;
+			if (loadedCount === mediaList.length) {
+				mediaLoaded = true;
+				if (show) {
+					animateCards();
+				}
+			}
+		}
+	}
+
+	function animateCards() {
+		let delay = 0;
+		const interval = setInterval(() => {
+			if (visibleCards.length < internships.length) {
+				visibleCards = [...visibleCards, internships[visibleCards.length]];
+			} else {
+				clearInterval(interval);
+			}
+		}, 150);
+	}
+
+	function openModal(media) {
+		selectedMedia = media;
+	}
+
+	function closeModal() {
+		selectedMedia = null;
+	}
+
+	function handleKeydown(event, media) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			openModal(media);
+		}
+	}
+
+	function stopPropagation(event) {
+		event.stopPropagation();
+	}
+</script>
+
+<section
+	bind:this={sectionRef}
+	class="justify-center py-10 {$theme === 'light' ? 'bg-white text-black' : 'bg-black text-white'}"
+>
+	<div class="container p-4 mx-auto">
+		<div
+			class="justify-center h-auto py-5 text-4xl font-bold text-center section-label lg:text-left lg:text-5xl"
+		>
+			Student Internship Works
+		</div>
+
+		{#if mediaLoaded && show}
+			<div class="lg:col-span-2">
+				<div class="grid grid-cols-1 gap-5 mt-10 md:grid-cols-2 xl:grid-cols-3">
+					{#each visibleCards as media, i (i)}
+						<div
+							class="h-[300px] w-full overflow-hidden rounded-xl shadow-lg"
+							in:fly={{ x: 100, duration: 500, easing: cubicOut }}
+						>
+							<button
+								class="w-full h-full focus:outline-none focus:ring-2 focus:ring-blue-300"
+								on:click={() => openModal(media)}
+								on:keydown={(e) => handleKeydown(e, media)}
+							>
+								{#if isVideo(media)}
+									<video src={media} class="object-cover object-center w-full h-full" controls>
+										<track kind="captions" />
+										Your browser does not support the video tag.
+									</video>
+								{:else}
+									<img
+										src={media}
+										alt="media-{i}"
+										class="object-cover object-center w-full h-full"
+									/>
+								{/if}
+							</button>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else}
+			<div class="flex h-[calc(100vh-200px)] items-center justify-center lg:col-span-2">
+				<span class="loading loading-spinner loading-lg"></span>
+			</div>
+		{/if}
+	</div>
+</section>
+
+{#if selectedMedia}
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div
+		class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 z-100"
+		on:keydown={(e) => e.key === 'Escape' && closeModal()}
+		tabindex="-1"
+	>
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div
+			class="relative flex h-full max-h-[90vh] max-w-[90vw] items-center justify-center"
+			on:click={stopPropagation}
+		>
+			{#if isVideo(selectedMedia)}
+				<!-- svelte-ignore a11y-media-has-caption -->
+				<div class="relative inline-block">
+					<video src={selectedMedia} controls class="object-contain max-w-full max-h-screen">
+						Your browser does not support the video tag.
+					</video>
+					<button
+						class="absolute text-white bg-black btn btn-circle right-4 top-4"
+						on:click={closeModal}
+					>
+						<Icons.x />
+					</button>
+				</div>
+			{:else}
+				<div class="relative inline-block">
+					<img
+						src={selectedMedia}
+						alt={selectedMedia}
+						class="object-contain max-w-full max-h-screen"
+					/>
+					<button
+						class="absolute text-white bg-black btn btn-circle right-4 top-4"
+						on:click={closeModal}
+					>
+						<Icons.x />
+					</button>
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}
+
+<style>
+	section {
+		min-height: 50vh;
+	}
+</style>
